@@ -105,24 +105,26 @@ class DigitMatchStrategy:
 
         if won:
             self.trades_won += 1
-            # Winning trade: reset stake to initial
-            self.reset_stake_after_win()
-            self.consecutive_losses = 0
-            # Add profit (payout - stake)
+            # Add profit BEFORE resetting stake (payout - stake)
             if pnl is not None:
                 self.total_profit += pnl
             else:
                 # Payout = stake * 8.93, Profit = Payout - Stake = (8.93 - 1) * stake
+                # Use current stake BEFORE reset for correct calculation
                 self.total_profit += self.current_stake * 7.93
+            # Winning trade: reset stake to initial
+            self.reset_stake_after_win()
+            self.consecutive_losses = 0
         else:
-            # Losing trade: escalate stake
-            self.consecutive_losses += 1
-            self.escalate_stake_after_loss()
-            # Subtract loss
+            # Losing trade: subtract loss BEFORE escalating stake
             if pnl is not None:
                 self.total_profit += pnl  # pnl is already negative
             else:
+                # Use current stake BEFORE escalation for correct calculation
                 self.total_profit -= self.current_stake
+            # Escalate stake for next trade
+            self.consecutive_losses += 1
+            self.escalate_stake_after_loss()
 
     def should_continue_trading(self) -> tuple:
         """

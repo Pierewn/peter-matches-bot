@@ -331,7 +331,7 @@ class MatchesBot:
                     f"ID: {contract_id}"
                 )
 
-                await self.monitor_contract(contract_id, barrier)
+                await self.monitor_contract(contract_id, barrier, stake_amount=amount)
             else:
                 logger.error("Trade execution failed")
 
@@ -354,13 +354,17 @@ class MatchesBot:
             if response.get("req_id") == req_id:
                 return response
 
-    async def monitor_contract(self, contract_id: str, barrier: str, timeout: int = 60) -> None:
+    async def monitor_contract(self, contract_id: str, barrier: str, timeout: int = 60, stake_amount: float = None) -> None:
         """
         Monitor contract until it closes via websockets.
+        stake_amount: actual stake used for this trade (for correct PnL calculation)
         """
+        if stake_amount is None:
+            stake_amount = self.stake_amount
+
         start_time = time.time()
-        payout = self.stake_amount * 8.93  # 8.93x payout for 1-tick duration
-        win_profit = payout - self.stake_amount  # ~$7.93 profit per win
+        payout = stake_amount * 8.93  # 8.93x payout for 1-tick duration
+        win_profit = payout - stake_amount  # ~$7.93 profit per win
 
         while self.is_running and (time.time() - start_time) < timeout:
             try:
@@ -375,7 +379,7 @@ class MatchesBot:
                         if is_closed:
                             # Contract closed - determine outcome
                             status = poc.get("status", "")
-                            pnl = float(poc.get("profit", 0)) if status == "won" else -self.stake_amount
+                            pnl = float(poc.get("profit", 0)) if status == "won" else -stake_amount
 
                             won = status == "won"
                             result_emoji = "✅ WIN" if won else "❌ LOSS"
