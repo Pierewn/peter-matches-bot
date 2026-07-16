@@ -346,7 +346,6 @@ class MatchesBot:
                             "subscribe": 1,
                             "contract_type": contract_type,
                             "currency": "USD",
-                            "symbol": self.symbol,
                             "duration": 1,
                             "duration_unit": "t",
                             "basis": "stake",
@@ -407,11 +406,16 @@ class MatchesBot:
                 )
                 # Put non-proposal messages back for other consumers
                 if response.get("req_id") == req_id and "proposal" in response:
+                    logger.debug(f"Proposal received for req_id {req_id}")
                     return response.get("proposal")
                 else:
+                    # Debug: log what we got instead
+                    if "proposal" in response:
+                        logger.debug(f"Got proposal for req_id {response.get('req_id')}, not {req_id}")
                     # Re-queue for tick processor or other handlers
                     await self._message_queue.put(response)
             except asyncio.TimeoutError:
+                logger.debug(f"Proposal wait timeout after {time.time() - start_time:.1f}s")
                 break
         return None
 
