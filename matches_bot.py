@@ -235,7 +235,6 @@ class MatchesBot:
                 "ticks": self.symbol,
                 "subscribe": 1,
                 "req_id": req_id,
-                "underlying_symbol": self.symbol,
             })
             logger.info(f"Subscribed to ticks for {self.symbol}")
 
