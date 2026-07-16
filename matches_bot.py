@@ -294,14 +294,35 @@ class MatchesBot:
                 "req_id": proposal_req_id,
             })
 
-            # Wait for proposal response
-            proposal = await asyncio.wait_for(
-                self._wait_for_proposal(proposal_req_id),
-                timeout=5.0
-            )
+            # Wait for proposal response (with retry)
+            proposal = None
+            for attempt in range(2):
+                try:
+                    proposal = await asyncio.wait_for(
+                        self._wait_for_proposal(proposal_req_id),
+                        timeout=15.0
+                    )
+                    break
+                except asyncio.TimeoutError:
+                    logger.warning(f"Proposal timeout (attempt {attempt+1}/2), retrying...")
+                    if attempt < 1:
+                        proposal_req_id = self._get_next_req_id()
+                        await self.send({
+                            "proposal": 1,
+                            "subscribe": 1,
+                            "contract_type": contract_type,
+                            "currency": "USD",
+                            "symbol": self.symbol,
+                            "duration": 1,
+                            "duration_unit": "t",
+                            "basis": "stake",
+                            "amount": amount,
+                            "barrier": str(barrier),
+                            "req_id": proposal_req_id,
+                        })
 
             if not proposal:
-                logger.error("Failed to get contract proposal")
+                logger.error("Failed to get contract proposal after retries")
                 return
 
             # Buy the contract
@@ -316,7 +337,7 @@ class MatchesBot:
             # Wait for buy confirmation
             buy_response = await asyncio.wait_for(
                 self._wait_for_buy(buy_req_id),
-                timeout=5.0
+                timeout=15.0
             )
 
             if buy_response and "buy" in buy_response:
@@ -427,6 +448,7 @@ class MatchesBot:
         Send Telegram notification.
         """
         if not (self.telegram_token and self.telegram_chat_id):
+            logger.debug("Telegram not configured")
             return
 
         try:
@@ -437,9 +459,17 @@ class MatchesBot:
                 "text": message,
                 "parse_mode": "Markdown",
             }
-            requests.post(url, data=data, timeout=5)
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: requests.post(url, data=data, timeout=5)
+            )
+            if response.status_code == 200:
+                logger.info("📱 Telegram notification sent ✓")
+            else:
+                logger.error(f"Telegram HTTP {response.status_code}: {response.text}")
         except Exception as e:
-            logger.error(f"Telegram send error: {e}")
+            logger.error(f"Telegram send error: {e}", exc_info=True)
 
     async def log_trade_to_supabase(
         self,
