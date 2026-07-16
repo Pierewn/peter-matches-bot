@@ -494,13 +494,22 @@ class MatchesBot:
 
                             won = status == "won"
                             result_emoji = "✅ WIN" if won else "❌ LOSS"
-                            logger.info(f"{result_emoji}: {contract_id} | PnL: ${pnl:.2f}")
 
                             # Record outcome with PnL for martingale tracking
                             self.strategy.record_outcome(int(barrier), won, pnl=pnl)
 
                             # Get updated report (includes martingale state)
                             report = self.strategy.get_report()
+
+                            # Log summary with strategy performance
+                            win_rate = self.strategy.get_win_rate()
+                            logger.info(
+                                f"{result_emoji} CONTRACT {contract_id} | "
+                                f"PnL: ${pnl:+.2f} | "
+                                f"Total: ${report['total_profit']:+.2f} | "
+                                f"Wins: {report['trades_won']}/{report['trades_executed']} ({win_rate:.0%}) | "
+                                f"Stake: ${report['current_stake']:.2f}"
+                            )
 
                             await self.send_telegram_notification(
                                 f"🎰 **Matches Trade Closed**\n"
