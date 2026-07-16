@@ -35,7 +35,6 @@ class DigitMatchExecutor:
                 "subscribe": 1,
                 "contract_type": self.contract_type,
                 "currency": "USD",
-                "symbol": symbol,
                 "duration": duration,
                 "duration_unit": duration_unit,
                 "barrier": barrier,

@@ -118,7 +118,12 @@ class MatchesBot:
         """Connect to Deriv API via websockets."""
         try:
             ws_url = await self._get_ws_url()
-            self.ws = await websockets.connect(ws_url)
+            self.ws = await websockets.connect(
+                ws_url,
+                ping_interval=20,
+                ping_timeout=10,
+                close_timeout=10,
+            )
             logger.info("Connected to Deriv!")
 
             # Initialize executor with self (for send/recv)
@@ -201,6 +206,21 @@ class MatchesBot:
                 continue
             except Exception as e:
                 logger.error(f"Message reader error: {e}")
+                await asyncio.sleep(1)
+
+    async def _keepalive_loop(self) -> None:
+        """Monitor connection health and detect stale connections."""
+        while self.is_running:
+            try:
+                await asyncio.sleep(30)
+                if self.ws and self.ws.closed:
+                    logger.error("Connection died, reconnecting...")
+                    if not await self.connect():
+                        logger.error("Reconnection failed, stopping bot")
+                        self.is_running = False
+                        break
+            except Exception as e:
+                logger.warning(f"Keepalive loop error: {e}")
                 await asyncio.sleep(1)
 
     async def stream_ticks(self) -> None:
@@ -299,7 +319,6 @@ class MatchesBot:
                 "subscribe": 1,
                 "contract_type": contract_type,
                 "currency": "USD",
-                "symbol": self.symbol,
                 "duration": 1,
                 "duration_unit": "t",
                 "basis": "stake",
@@ -558,10 +577,11 @@ class MatchesBot:
                 f"Strategy: Digit Frequency + Patterns"
             )
 
-            # Run message reader and tick stream in parallel
+            # Run message reader, tick stream, and keepalive monitor in parallel
             await asyncio.gather(
                 self._message_reader(),
                 self.stream_ticks(),
+                self._keepalive_loop(),
                 return_exceptions=True
             )
 
