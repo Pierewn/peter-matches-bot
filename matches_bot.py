@@ -453,11 +453,15 @@ class MatchesBot:
 
         try:
             import requests
+            import re
+            # Convert markdown **text** to HTML <b>text</b>
+            message_html = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", message)
+
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
             data = {
                 "chat_id": self.telegram_chat_id,
-                "text": message,
-                "parse_mode": "Markdown",
+                "text": message_html,
+                "parse_mode": "HTML",
             }
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
