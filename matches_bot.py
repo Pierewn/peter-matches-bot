@@ -213,7 +213,8 @@ class MatchesBot:
         while self.is_running:
             try:
                 await asyncio.sleep(30)
-                if self.ws and self.ws.closed:
+                # Check if connection is closed using close_code (None = open)
+                if self.ws and self.ws.close_code is not None:
                     logger.error("Connection died, reconnecting...")
                     if not await self.connect():
                         logger.error("Reconnection failed, stopping bot")
