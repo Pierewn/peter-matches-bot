@@ -363,9 +363,8 @@ class MatchesBot:
             # Buy the contract
             buy_req_id = self._get_next_req_id()
             await self.send({
-                "buy": 1,
+                "buy": proposal.get("id"),
                 "price": proposal.get("ask_price"),
-                "parameters": proposal.get("id"),
                 "req_id": buy_req_id,
             })
 
