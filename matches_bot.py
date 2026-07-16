@@ -47,6 +47,7 @@ class MatchesBot:
 
         self.ws = None
         self._recv_lock = asyncio.Lock()
+        self._message_queue = asyncio.Queue()  # Central message dispatch queue
         self.strategy = DigitMatchStrategy()
         self.executor = None
         self.is_running = False
@@ -190,6 +191,18 @@ class MatchesBot:
             except Exception as e:
                 logger.warning(f"Disconnect error: {e}")
 
+    async def _message_reader(self) -> None:
+        """Central message reader - reads from websocket and queues messages."""
+        while self.is_running:
+            try:
+                response = await asyncio.wait_for(self.recv(), timeout=5.0)
+                await self._message_queue.put(response)
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Message reader error: {e}")
+                await asyncio.sleep(1)
+
     async def stream_ticks(self) -> None:
         """
         Subscribe to live ticks and process them.
@@ -204,10 +217,10 @@ class MatchesBot:
             })
             logger.info(f"Subscribed to ticks for {self.symbol}")
 
-            # Listen for tick updates
+            # Listen for tick updates from message queue
             while self.is_running:
                 try:
-                    response = await asyncio.wait_for(self.recv(), timeout=5.0)
+                    response = await asyncio.wait_for(self._message_queue.get(), timeout=5.0)
 
                     if "error" in response:
                         logger.error(f"Tick error: {response.get('error', {}).get('message')}")
@@ -218,6 +231,7 @@ class MatchesBot:
                     elif "balance" in response:
                         # Keep balance updated
                         self.balance = float(response["balance"].get("balance", self.balance))
+                    # Other message types (proposal, buy, etc.) will be handled by their respective waiters
 
                 except asyncio.TimeoutError:
                     logger.debug("Tick stream timeout (normal)")
@@ -362,18 +376,42 @@ class MatchesBot:
             logger.error(f"Trade execution exception: {e}", exc_info=True)
 
     async def _wait_for_proposal(self, req_id: int) -> Optional[Dict]:
-        """Wait for proposal response with matching req_id."""
-        while True:
-            response = await self.recv()
-            if response.get("req_id") == req_id and "proposal" in response:
-                return response.get("proposal")
+        """Wait for proposal response with matching req_id from queue."""
+        max_wait = 15.0
+        start_time = time.time()
+        while (time.time() - start_time) < max_wait:
+            try:
+                response = await asyncio.wait_for(
+                    self._message_queue.get(),
+                    timeout=max_wait - (time.time() - start_time)
+                )
+                # Put non-proposal messages back for other consumers
+                if response.get("req_id") == req_id and "proposal" in response:
+                    return response.get("proposal")
+                else:
+                    # Re-queue for tick processor or other handlers
+                    await self._message_queue.put(response)
+            except asyncio.TimeoutError:
+                break
+        return None
 
     async def _wait_for_buy(self, req_id: int) -> Optional[Dict]:
-        """Wait for buy confirmation with matching req_id."""
-        while True:
-            response = await self.recv()
-            if response.get("req_id") == req_id:
-                return response
+        """Wait for buy confirmation with matching req_id from queue."""
+        max_wait = 15.0
+        start_time = time.time()
+        while (time.time() - start_time) < max_wait:
+            try:
+                response = await asyncio.wait_for(
+                    self._message_queue.get(),
+                    timeout=max_wait - (time.time() - start_time)
+                )
+                if response.get("req_id") == req_id and "buy" in response:
+                    return response
+                else:
+                    await self._message_queue.put(response)
+            except asyncio.TimeoutError:
+                break
+        return None
 
     async def monitor_contract(self, contract_id: str, barrier: str, timeout: int = 60, stake_amount: float = None) -> None:
         """
@@ -520,7 +558,12 @@ class MatchesBot:
                 f"Strategy: Digit Frequency + Patterns"
             )
 
-            await self.stream_ticks()
+            # Run message reader and tick stream in parallel
+            await asyncio.gather(
+                self._message_reader(),
+                self.stream_ticks(),
+                return_exceptions=True
+            )
 
         except KeyboardInterrupt:
             logger.info("MatchesBot interrupted")
