@@ -1,0 +1,14 @@
+# NEVER commit the .env file — it contains your private token
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+venv/
+env/
+*.egg-info/
+
+# Logs
+*.log

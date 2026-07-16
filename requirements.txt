@@ -1,0 +1,8 @@
+websockets==14.1
+pandas==2.2.2
+python-dotenv==1.0.1
+requests==2.31.0
+supabase==2.9.0
+metaapi-cloud-sdk
+ccxt==4.3.89
+alpaca-py==0.29.0
