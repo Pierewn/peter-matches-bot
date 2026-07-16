@@ -404,18 +404,29 @@ class MatchesBot:
                     self._message_queue.get(),
                     timeout=max_wait - (time.time() - start_time)
                 )
+
+                # Check for errors first
+                if "error" in response:
+                    logger.error(f"API error in queue: {response.get('error', {}).get('message')}")
+                    if response.get("req_id") == req_id:
+                        return None  # Error response for our request
+                    # Re-queue error for other handlers
+                    await self._message_queue.put(response)
+                    continue
+
                 # Put non-proposal messages back for other consumers
                 if response.get("req_id") == req_id and "proposal" in response:
-                    logger.debug(f"Proposal received for req_id {req_id}")
+                    logger.info(f"✅ Proposal received for req_id {req_id}")
                     return response.get("proposal")
-                else:
-                    # Debug: log what we got instead
-                    if "proposal" in response:
-                        logger.debug(f"Got proposal for req_id {response.get('req_id')}, not {req_id}")
+                elif "proposal" in response:
+                    logger.debug(f"Got proposal for req_id {response.get('req_id')}, not {req_id}")
                     # Re-queue for tick processor or other handlers
                     await self._message_queue.put(response)
+                else:
+                    # Not a proposal, re-queue
+                    await self._message_queue.put(response)
             except asyncio.TimeoutError:
-                logger.debug(f"Proposal wait timeout after {time.time() - start_time:.1f}s")
+                logger.warning(f"Proposal timeout after {time.time() - start_time:.1f}s for req_id {req_id}")
                 break
         return None
 
