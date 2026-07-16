@@ -47,6 +47,7 @@ class MatchesBot:
 
         self.ws = None
         self._recv_lock = asyncio.Lock()
+        self._consecutive_proposal_failures = 0
         self._message_queue = asyncio.Queue()  # Central message dispatch queue
         self.strategy = DigitMatchStrategy()
         self.executor = None
@@ -357,8 +358,23 @@ class MatchesBot:
                         })
 
             if not proposal:
-                logger.error("Failed to get contract proposal after retries")
+                self._consecutive_proposal_failures += 1
+                logger.error(f"Failed to get contract proposal after retries (streak: {self._consecutive_proposal_failures})")
+
+                # Trigger reconnection if proposals fail 3+ times in a row
+                if self._consecutive_proposal_failures >= 3:
+                    logger.warning("Proposal failure streak >=3, reconnecting...")
+                    await self.disconnect()
+                    await asyncio.sleep(0.5)
+                    if not await self.connect():
+                        logger.error("Reconnection failed")
+                        return
+                    self._consecutive_proposal_failures = 0
                 return
+                return
+
+            # Reset failure counter on successful proposal
+            self._consecutive_proposal_failures = 0
 
             # Buy the contract
             buy_req_id = self._get_next_req_id()
