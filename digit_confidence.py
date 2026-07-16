@@ -142,9 +142,10 @@ class DigitConfidenceScorer:
 
         combined_score = max(0.0, min(1.0, combined_score))
 
-        # Always use DIGITMATCH (8.93x payout) when confidence is decent
+        # Always use DIGITMATCH (8.93x payout) when confidence >= 0.20
         # Never use DIGITDIFF (lower payout)
-        if combined_score >= self.low_threshold:
+        # Threshold lowered from 0.35 to 0.20 to match actual signal strength
+        if combined_score >= 0.20:
             recommendation = "DIGITMATCH"
         else:
             recommendation = "SKIP"
