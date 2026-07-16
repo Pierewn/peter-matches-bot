@@ -11,8 +11,8 @@ COPY matches_bot.py .
 COPY digit_analyzer.py .
 COPY digit_patterns.py .
 COPY digit_confidence.py .
-COPY -r strategies/ strategies/
-COPY -r execution/ execution/
+COPY strategies/ strategies/
+COPY execution/ execution/
 
 # Run Matches bot
 CMD ["python", "matches_bot.py"]
