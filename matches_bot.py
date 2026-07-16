@@ -120,8 +120,8 @@ class MatchesBot:
             ws_url = await self._get_ws_url()
             self.ws = await websockets.connect(
                 ws_url,
-                ping_interval=20,
-                ping_timeout=10,
+                ping_interval=60,
+                ping_timeout=30,
                 close_timeout=10,
             )
             logger.info("Connected to Deriv!")
@@ -235,6 +235,7 @@ class MatchesBot:
                 "ticks": self.symbol,
                 "subscribe": 1,
                 "req_id": req_id,
+                "underlying_symbol": self.symbol,
             })
             logger.info(f"Subscribed to ticks for {self.symbol}")
 
