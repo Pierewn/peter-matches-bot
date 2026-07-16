@@ -314,11 +314,10 @@ class MatchesBot:
                 f"(confidence={confidence.confidence:.2f}, stake=${amount:.2f})"
             )
 
-            # Send contract proposal
+            # Send contract proposal (no subscribe - subscription is per-connection, not per-request)
             proposal_req_id = self._get_next_req_id()
             await self.send({
                 "proposal": 1,
-                "subscribe": 1,
                 "contract_type": contract_type,
                 "currency": "USD",
                 "underlying_symbol": self.symbol,
@@ -345,7 +344,6 @@ class MatchesBot:
                         proposal_req_id = self._get_next_req_id()
                         await self.send({
                             "proposal": 1,
-                            "subscribe": 1,
                             "contract_type": contract_type,
                             "currency": "USD",
                             "underlying_symbol": self.symbol,
