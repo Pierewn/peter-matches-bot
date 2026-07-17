@@ -207,7 +207,8 @@ class MatchesBot:
                 continue
             except Exception as e:
                 logger.error(f"Message reader error: {e}")
-                await asyncio.sleep(1)
+                # Connection is dead, break to let keepalive/reconnect handle it
+                break
 
     async def _keepalive_loop(self) -> None:
         """Monitor connection health and detect stale connections."""
