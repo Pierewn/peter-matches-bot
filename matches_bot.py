@@ -49,6 +49,7 @@ class MatchesBot:
         self._recv_lock = asyncio.Lock()
         self._consecutive_proposal_failures = 0
         self._message_queue = asyncio.Queue()  # Central message dispatch queue
+        self._subscribed_to_proposals = False  # Track if we've subscribed on this connection
         self.strategy = DigitMatchStrategy()
         self.executor = None
         self.is_running = False
@@ -129,6 +130,7 @@ class MatchesBot:
 
             # Initialize executor with self (for send/recv)
             self.executor = DigitMatchExecutor(self, contract_type="DIGITMATCH")
+            self._subscribed_to_proposals = False  # Reset subscription flag on new connection
 
             # Authorize connection
             if not await self._authorize():
@@ -315,9 +317,9 @@ class MatchesBot:
                 f"(confidence={confidence.confidence:.2f}, stake=${amount:.2f})"
             )
 
-            # Send contract proposal (no subscribe - subscription is per-connection, not per-request)
+            # Send contract proposal (subscribe only on first proposal per connection)
             proposal_req_id = self._get_next_req_id()
-            await self.send({
+            proposal_msg = {
                 "proposal": 1,
                 "contract_type": contract_type,
                 "currency": "USD",
@@ -328,7 +330,11 @@ class MatchesBot:
                 "amount": amount,
                 "barrier": str(barrier),
                 "req_id": proposal_req_id,
-            })
+            }
+            if not self._subscribed_to_proposals:
+                proposal_msg["subscribe"] = 1
+                self._subscribed_to_proposals = True
+            await self.send(proposal_msg)
 
             # Wait for proposal response (with retry)
             proposal = None
@@ -343,7 +349,7 @@ class MatchesBot:
                     logger.warning(f"Proposal timeout (attempt {attempt+1}/2), retrying...")
                     if attempt < 1:
                         proposal_req_id = self._get_next_req_id()
-                        await self.send({
+                        proposal_msg = {
                             "proposal": 1,
                             "contract_type": contract_type,
                             "currency": "USD",
@@ -354,7 +360,11 @@ class MatchesBot:
                             "amount": amount,
                             "barrier": str(barrier),
                             "req_id": proposal_req_id,
-                        })
+                        }
+                        if not self._subscribed_to_proposals:
+                            proposal_msg["subscribe"] = 1
+                            self._subscribed_to_proposals = True
+                        await self.send(proposal_msg)
 
             if not proposal:
                 self._consecutive_proposal_failures += 1
